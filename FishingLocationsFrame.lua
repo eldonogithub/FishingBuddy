@@ -366,33 +366,28 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                 button.name = nil;
                 texture = nil;
             end
-            -- Opt-in: append the number of catches and its share of all
-            -- recorded catches, like the fish watcher. Reuse the existing
-            -- EllipsizeText append slot so no XML change is needed.
-            -- NB: `percent` from the old code is always nil here (the parent
-            -- row's `totals` is a per-row local), so derive the ratio from the
-            -- grand total instead.
-            if ( FBI:GetSettingBool("ShowLocationCounts") ) then
-                local grand = ComputeGrandTotal();
-                local pct = nil;
-                if ( catchescount and catchescount > 0 and grand > 0 ) then
-                    pct = math.floor((catchescount / grand) * 100 + 0.5);
-                    if ( pct > 100 ) then pct = 100; end
+            -- Calculate each row from its own location and parent, not global totals.
+            local count, total = FBI:GetLocationRowStats(elementData.index);
+            local pct = total and total > 0 and (count / total * 100) or nil;
+            -- Replace legacy per-row tooltip counts with the same contextual values.
+            for i = #button.tooltip, 1, -1 do
+                local row = button.tooltip[i];
+                if type(row) == "table" and type(row[1]) == "table" and
+                    (row[1][1] == FBConstants.CAUGHTTHISMANY or
+                     row[1][1] == FBConstants.CAUGHTTHISTOTAL) then
+                    table.remove(button.tooltip, i);
                 end
-                if ( catchescount and catchescount > 0 ) then
-                    if ( pct ) then
-                        append = " ("..catchescount.." : "..pct.."%)";
-                    else
-                        append = " ("..catchescount..")";
-                    end
-                else
-                    append = "";
-                end
-            elseif ( percent ) then
-                percent = math.floor(percent*100);
-                append = " ("..percent.."%)";
+            end
+            tinsert(button.tooltip, {{FBConstants.CAUGHTTHISMANY, green}, {count, white}});
+            if total then
+                tinsert(button.tooltip, {{FBConstants.CAUGHTTHISTOTAL, green}, {total, white}});
+            end
+            if FBI:GetSettingBool("ShowLocationCounts") then
+                append = " ("..count..(pct and string.format(" : %.1f%%", pct) or "")..")";
+            elseif pct then
+                append = string.format(" (%.1f%%)", pct);
             else
-                append = ""
+                append = "";
             end
             if texture then
                 fishingIcon:Show()
