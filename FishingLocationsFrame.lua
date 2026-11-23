@@ -118,6 +118,44 @@ FBEnvironment.SwitchButton_OnEnter = function()
     GameTooltip:Show();
 end
 
+-- Grand total of all recorded catches, used as the denominator for the
+-- percentages in the Locations tab. The button initializer runs once per
+-- visible row, so cache the result and invalidate it when fish data changes.
+local grandTotal = nil;
+local function ComputeGrandTotal()
+    if ( grandTotal ~= nil ) then
+        return grandTotal;
+    end
+    local total = 0;
+    local bf = FBI.ByFishie;
+    if ( bf ) then
+        for _, zones in pairs(bf) do
+            for _, quantity in pairs(zones) do
+                total = total + (tonumber(quantity) or 0);
+            end
+        end
+    end
+    grandTotal = total;
+    return total;
+end
+
+-- The packed line record has no parent pointer, and `lastzid` was lost when
+-- the list moved to ScrollBox element initializers (each row is initialized
+-- on its own). Walk back through the visible rows to find the enclosing zone
+-- header for a nested fish row.
+local function FindParentZoneMarker(index, level)
+    for i = index - 1, 1, -1 do
+        local rec = FishingLocations:GetVisible(i);
+        if ( rec and rec ~= 0 ) then
+            local pz, _, _, _, pl = FishingLocations:unpack(rec);
+            if ( pz > 0 and pl < level ) then
+                return pz;
+            end
+        end
+    end
+    return nil;
+end
+
 local LocOptions = {
     ["ShowLocationZones"] = {
         ["text"] = FBConstants.CONFIG_SHOWLOCATIONZONES_ONOFF,
@@ -175,6 +213,7 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
 		fishContainer:SetPoint("LEFT", xOffset, yOffset);
 
         local percent = nil;
+        local catchescount = nil;
         local zidx, sidx;
         if ( zid > 0 ) then
             lastzid = zid;
@@ -195,6 +234,9 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
             else
                 totals[level] = FishingBuddy_Info["FishTotals"][zid];
             end
+            -- Base catch total for zone/subzone rows; more specific branches
+            -- below may override this.
+            catchescount = totals[level];
         else
             if ( level == 0 ) then
                 lastfid = fid;
@@ -213,16 +255,34 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                     tinsert(button.tooltip, ITEM_BIND_QUEST);
                 end
                 if ( level > 0 ) then
-                    local sz = FishingBuddy_Info["SubZones"][lastzid];
-                    local ztab = FBI.SubZoneMap[sz];
+                    -- Recover the enclosing zone header, since lastzid is nil
+                    -- for fish rows under the ScrollBox initializer.
+                    local parentzid = FindParentZoneMarker(elementData.index, level);
                     local count = 0;
-                    if ( ztab ) then
-                        for idx,_ in pairs(ztab) do
-                            if ( fh[idx] and fh[idx][fid] ) then
-                                count = count + fh[idx][fid];
+                    if ( parentzid and fh[parentzid] ) then
+                        count = fh[parentzid][fid] or 0;
+                    end
+                    -- If that zone has no record for this fish, this is the
+                    -- grouped-by-subzone-name view: aggregate across the zone
+                    -- markers sharing that subzone name.
+                    if ( count == 0 and parentzid ) then
+                        local sz = FishingBuddy_Info["SubZones"][parentzid];
+                        local ztab = sz and FBI.SubZoneMap[sz];
+                        if ( ztab ) then
+                            for idx,_ in pairs(ztab) do
+                                if ( fh[idx] and fh[idx][fid] ) then
+                                    count = count + fh[idx][fid];
+                                end
                             end
                         end
                     end
+                    -- Final fallback: this fish's total across all zones.
+                    if ( count == 0 and bf[fid] ) then
+                        for _,quantity in pairs(bf[fid]) do
+                            count = count + (tonumber(quantity) or 0);
+                        end
+                    end
+                    catchescount = count;
                     if ( count > 0 ) then
                         tinsert(button.tooltip,
                                     { { FBConstants.CAUGHTTHISMANY, green },
@@ -240,6 +300,7 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                         total = total + count;
                     end
                     totals[0] = total;
+                    catchescount = total;
                     tinsert(button.tooltip,
                                 { { FBConstants.CAUGHTTHISTOTAL, green },
                                     { total, white } } );
@@ -263,6 +324,7 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                     end
                     if ( lastfid ) then
                         if ( bf[lastfid][zid] ) then
+                            catchescount = bf[lastfid][zid];
                             tinsert(button.tooltip,
                                         { { FBConstants.CAUGHTTHISTOTAL, green },
                                             { bf[lastfid][zid], white } } );
@@ -271,6 +333,7 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                             end
                         end
                     elseif ( ft[zid] ) then
+                        catchescount = ft[zid];
                         tinsert(button.tooltip,
                                         { { FBConstants.CAUGHTTHISTOTAL, green },
                                             { ft[zid], white } } );
@@ -292,7 +355,9 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                     tinsert(button.tooltip,
                                     { { FBConstants.CAUGHTTHISTOTAL, green },
                                         { totals[level], white } } );
+                    catchescount = totals[level];
                     if ( level > 0 and lastfid and bf[lastfid][zid] ) then
+                        catchescount = bf[lastfid][zid];
                         percent = bf[lastfid][zid]/totals[level-1];
                     end
                 end
@@ -301,7 +366,29 @@ local function FishingBuddy_InitLocationButton(self, button, elementData)
                 button.name = nil;
                 texture = nil;
             end
-            if ( percent ) then
+            -- Opt-in: append the number of catches and its share of all
+            -- recorded catches, like the fish watcher. Reuse the existing
+            -- EllipsizeText append slot so no XML change is needed.
+            -- NB: `percent` from the old code is always nil here (the parent
+            -- row's `totals` is a per-row local), so derive the ratio from the
+            -- grand total instead.
+            if ( FBI:GetSettingBool("ShowLocationCounts") ) then
+                local grand = ComputeGrandTotal();
+                local pct = nil;
+                if ( catchescount and catchescount > 0 and grand > 0 ) then
+                    pct = math.floor((catchescount / grand) * 100 + 0.5);
+                    if ( pct > 100 ) then pct = 100; end
+                end
+                if ( catchescount and catchescount > 0 ) then
+                    if ( pct ) then
+                        append = " ("..catchescount.." : "..pct.."%)";
+                    else
+                        append = " ("..catchescount..")";
+                    end
+                else
+                    append = "";
+                end
+            elseif ( percent ) then
                 percent = math.floor(percent*100);
                 append = " ("..percent.."%)";
             else
@@ -323,6 +410,13 @@ end
 
 local LocationsEvents = {}
 LocationsEvents[FBConstants.ADD_FISHIE_EVT] = function(...)
+    grandTotal = nil;
+    FishingLocationsFrame.valid = false;
+    EventRegistry:TriggerEvent("FishingLocatons.Update")
+end
+-- Redraw when the display options change (e.g. ShowLocationCounts).
+LocationsEvents[FBConstants.OPT_UPDATE_EVT] = function(...)
+    grandTotal = nil;
     FishingLocationsFrame.valid = false;
     EventRegistry:TriggerEvent("FishingLocatons.Update")
 end
@@ -335,6 +429,7 @@ function FBEnvironment.Locations_OnLoad(self)
     FBI.OptionsFrame.HandleOptions(nil, nil, LocOptions);
 
     local function UpdateLocations()
+        grandTotal = nil;
         FishingLocationsFrame.valid = false;
         EventRegistry:TriggerEvent("FishingLocatons.Update")
 	end
@@ -383,6 +478,7 @@ function FBEnvironment.Locations_OnEvent(self, event, ...)
 end
 
 FBI.Locations.DataChanged = function(zone, subzone, fishie)
+    grandTotal = nil;
     FishingLocationsFrame.valid = false;
 end
 

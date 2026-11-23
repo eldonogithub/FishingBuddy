@@ -53,11 +53,6 @@ function FBI:FishTrackingEnable(enabled)
     end
 end
 
-local function Untrack(yes)
-    if ( yes ) then
-        FBI:FishTrackingEnable(false);
-    end
-end
 
 FluffEvents[FBConstants.LOGIN_EVT] = function()
     if ( FishingBuddy_Player ) then
@@ -444,31 +439,5 @@ FluffEvents[FBConstants.FIRST_UPDATE_EVT] = function()
     FBI:AddFluffOptions(FluffOptions)
 end
 
-EventRegistry:RegisterCallback(FBConstants.FISHING_ENABLED_EVT, function()
-    if ( FBI:GetSettingBool("FishingFluff")) then
-        if ( GetSettingBool("FindFish") ) then
-            FBI:FishTrackingEnable(true);
-        end
-        if ( GetSettingBool("TurnOffPVP") ) then
-            if (1 == GetPVPDesired() ) then
-                resetPVP = true;
-                SetPVP(0);
-            end
-        end
-    end
-end)
-
-EventRegistry:RegisterCallback(FBConstants.FISHING_DISABLED_EVT, function(started, logout)
-    if ( logout ) then
-        FishingBuddy_Player["Untrack"] = unTrack;
-    else
-        Untrack(unTrack);
-    end
-    unTrack = nil;
-    if ( resetPVP ) then
-        SetPVP(1);
-    end
-    resetPVP = nil;
-end)
 
 FBI:RegisterHandlers(FluffEvents);

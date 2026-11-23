@@ -15,7 +15,7 @@ FishingTranslations["Inject"] = {
     DASH = " -- ",
 
     AUTHOR = "Sutorix (sutorix@hotmail.com)",
-    COPYRIGHT = "(c) 2005-2022 by The Software Cobbler",
+    COPYRIGHT = "(c) 2005-2026 by The Software Cobbler",
 
     WEEKLY = "weekly",
     HOURLY = "hourly",
@@ -164,8 +164,6 @@ FishingTranslations["enUS"] = {
     CONFIG_FLYINGCAST_INFO  = "If enabled, allow casting while flying.",
     CONFIG_PARTIALGEAR_ONOFF = "Partial Outfit",
     CONFIG_PARTIALGEAR_INFO  = "If enabled, cast when wearing any fishing gear at all, even if a pole is not equipped.",
-    CONFIG_WITHOUTGEAR_ONOFF = "Without gear",
-    CONFIG_WITHOUTGEAR_INFO  = "If enabled, cast no matter what is equipped, including not having any fishing gear or a pole.",
 
     CONFIG_FISHINGCHARM_INFO  = "If enabled, use the fishing charm while in Pandaria.",
     CONFIG_TUSKAARSPEAR_INFO  = "If enabled, do the complicated dance to use the Tuskaar Spear.",
@@ -210,6 +208,8 @@ FishingTranslations["enUS"] = {
     CONFIG_SHOWLOCATIONZONES_INFO = "Display both zones and subzones.",
     CONFIG_SORTBYPERCENT_ONOFF = "Sort by number caught",
     CONFIG_SORTBYPERCENT_INFO = "Order displays by the number of fish caught instead of by name.",
+    CONFIG_LOCATIONCOUNTS_ONOFF = "Show catch counts and percentages",
+    CONFIG_LOCATIONCOUNTS_INFO = "Show the number of catches and the percentage next to each entry in the Locations tab, similar to the fish watcher.",
     CONFIG_TOOLTIPS_ONOFF	  = "Show fishing info in tooltips",
     CONFIG_TOOLTIPS_INFO	  = "If enabled, information about caught fish will be displayed in item tooltips.",
     CONFIG_ONLYMINE_ONOFF	  = "Outfit Pole Only",

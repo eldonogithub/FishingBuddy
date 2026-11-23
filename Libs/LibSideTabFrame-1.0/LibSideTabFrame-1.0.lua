@@ -132,7 +132,12 @@ function SideTabLib:CreateTab(tabtext, icon, onclick, tooltip)
 	-- optimize if passed a string
 	local id = #self.TabFrames+1;
 	local framename = string.format(n.."Tab%d", id);
-	local tabframe = CreateFrame("CheckButton", framename, self, "UICheckButtonTemplate");
+	local tabframe = CreateFrame("Button", framename, self, "PanelTabButtonTemplate")
+
+	-- Add CheckButton-like methods since we're using a Button template
+	tabframe._checked = false
+	tabframe.GetChecked = function(self) return self._checked end
+	tabframe.SetChecked = function(self, checked) self._checked = checked end
 
 	tinsert(self.TabFrames, tabframe)
 
@@ -150,6 +155,22 @@ function SideTabLib:CreateTab(tabtext, icon, onclick, tooltip)
 
 	tabframe:SetID(id);
 	tabframe:SetNormalTexture(icon);
+
+	-- Prevent PanelTabButtonMixin's OnShow from resizing icon tabs via PanelTemplates_TabResize
+	tabframe:SetScript("OnShow", nil);
+	tabframe:SetScript("OnEvent", nil);
+	tabframe:SetSize(48, 48);
+
+	-- Hide template's tab-shaped highlights and use a full-button highlight instead
+	if tabframe.LeftHighlight then tabframe.LeftHighlight:Hide() end
+	if tabframe.MiddleHighlight then tabframe.MiddleHighlight:Hide() end
+	if tabframe.RightHighlight then tabframe.RightHighlight:Hide() end
+	local highlight = tabframe:CreateTexture(nil, "HIGHLIGHT")
+	highlight:SetAllPoints(tabframe)
+	highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+	highlight:SetBlendMode("ADD")
+	highlight:SetAlpha(0.4)
+	tabframe:SetHighlightTexture(highlight)
 
 	return tabframe;
 end

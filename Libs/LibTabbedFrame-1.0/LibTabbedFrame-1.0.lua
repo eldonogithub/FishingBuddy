@@ -23,7 +23,7 @@ function FrameLib:GetFrameInfo(f)
     if ( type(f) == "string" ) then
         n = f;
         f = _G[f];
-    else
+    elseif ( f ) then
         n = f:GetName();
     end
     return f, n;
@@ -37,15 +37,46 @@ local function FrameTab_Onclick(self)
     PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB);
 end
 
+local TAB_SIDES_PADDING = 20;
+
+local function FrameTab_Resize(self, padding)
+    local name = self:GetName();
+    local text = self.Text or _G[name.."Text"];
+    local left = self.Left or _G[name.."Left"];
+    local right = self.Right or _G[name.."Right"];
+
+    if not text then return end
+
+    text:SetWidth(0);
+    local textWidth = text:GetStringWidth();
+    local width = textWidth + TAB_SIDES_PADDING + (padding or 0);
+
+    local sideWidths = (left and left:GetWidth() or 20) + (right and right:GetWidth() or 20);
+    local parent = self:GetParent();
+    local maxWidth = parent and parent.maxTabWidth;
+    local minWidth = sideWidths;
+
+    if maxWidth and maxWidth > 0 and width > maxWidth then
+        width = maxWidth;
+        textWidth = width - TAB_SIDES_PADDING - (padding or 0);
+    elseif width < minWidth then
+        width = minWidth;
+        textWidth = width - TAB_SIDES_PADDING - (padding or 0);
+    end
+
+    text:SetWidth(textWidth);
+    self:SetWidth(width);
+end
+
 local function FrameTab_OnShow(self)
-    PanelTemplates_TabResize(self, 0, nil, 36, self:GetParent().maxTabWidth or 88);
+    FrameTab_Resize(self, 15);
 end
 
 function FrameLib:CreateTabFrame(tabtext)
     local id = #self.Tabs+1;
     local framename = self.name.."Tab"..id;
-    local frametype = "PanelTabButtonTemplate";
-    local tabframe = CreateFrame("Button", framename, self, frametype);
+    local tabframe = CreateFrame("Button", framename, self, "LibTabbedFrameTabTemplate");
+    tinsert(self.Tabs, tabframe);
 
     tabframe.name = tabtext;
     tabframe.enabled = true;
@@ -56,24 +87,43 @@ function FrameLib:CreateTabFrame(tabtext)
 
     tabframe:SetID(id);
 
-    tabframe.Text:SetText(tabtext);
-    local text = _G[tabframe:GetName()].Text;
-    text:SetWidth(0);
+    local text = _G[tabframe:GetName().."Text"];
+    if not text then
+        text = tabframe:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        text:SetPoint("CENTER", tabframe, "CENTER", 0, -3)
+    end
+    tabframe.Text = text
+    text:SetText(tabtext);
+
+    -- Reference template textures as frame fields for PanelTemplates functions
+    if not tabframe.Left then tabframe.Left = _G[tabframe:GetName().."Left"] end
+    if not tabframe.Middle then tabframe.Middle = _G[tabframe:GetName().."Middle"] end
+    if not tabframe.Right then tabframe.Right = _G[tabframe:GetName().."Right"] end
+    if not tabframe.LeftActive then tabframe.LeftActive = _G[tabframe:GetName().."LeftDisabled"] end
+    if not tabframe.MiddleActive then tabframe.MiddleActive = _G[tabframe:GetName().."MiddleDisabled"] end
+    if not tabframe.RightActive then tabframe.RightActive = _G[tabframe:GetName().."RightDisabled"] end
 
     PanelTemplates_SetNumTabs(self, id);
+
     self.maxTabWidth = self:GetWidth() / id;
-    PanelTemplates_TabResize(tabframe, 0, nil, 36, self.maxTabWidth or 88);
+    tabframe.ResizeTab = FrameTab_Resize;
+    FrameTab_Resize(tabframe);
     tabframe:SetFrameLevel(self:GetFrameLevel());
 
     return tabframe, id;
 end
 tinsert(copyfuncs, "CreateTabFrame");
 
+function FrameLib:ResizeTab(tab, padding)
+    FrameTab_Resize(tab, padding);
+end
+tinsert(copyfuncs, "ResizeTab");
+
 function FrameLib:UpdateTabFrame(tab)
     if ( tab.enabled ) then
         tab:ClearAllPoints();
         if ( self.lastTabFrame ) then
-            tab:SetPoint("TOPLEFT", self.lastTabFrame, "TOPRIGHT", 1, 0);
+            tab:SetPoint("LEFT", self.lastTabFrame, "RIGHT", -15, 0);
         else
             tab:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 11, 2);
         end
@@ -361,6 +411,10 @@ tinsert(copyfuncs, "GetUltimate");
 
 function FrameLib:ToggleTab(target)
     local frame, frameName = self:GetFrameInfo(target);
+    if not frame then
+        ShowUIPanel(self);
+        return;
+    end
     local tab = self:FindTab(frame);
     if ( tab ) then
         self.currentTab = tab;
@@ -372,6 +426,12 @@ function FrameLib:ToggleTab(target)
             ShowUIPanel(self);
         end
         self:ResetTabFrames();
+    else
+        if ( self:IsVisible() ) then
+            HideUIPanel(self);
+        else
+            ShowUIPanel(self);
+        end
     end
 end
 tinsert(copyfuncs, "ToggleTab");

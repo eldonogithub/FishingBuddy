@@ -17,11 +17,7 @@ local CurLoc = GetLocale();
 local FishingPlans = {}
 
 function FishingPlans:HaveThing(itemid, info)
-    if (info.toy) then
-        return PlayerHasToy(itemid) and C_ToyBox.IsToyUsable(itemid)
-    else
-        return GetItemCount(itemid) > 0;
-    end
+    return GetItemCount(itemid) > 0;
 end
 
 function FishingPlans:ItemCooldownOn(id)

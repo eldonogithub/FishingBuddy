@@ -142,6 +142,7 @@ credits[FBConstants.ROLE_HELP_BUGS] = {
 	["gryphon63"] = { "AboutBox alpha fixes", "Conjurer Margoss turn-in fix", },
 	["jleafey"] = { "Typo hunting" },
 	["Spiritwlf"] = { "Major fixes for Dragonflight, like, major!" },
+	["crediar"] = { "Classic crusade, forever fixes." },
 };
 
 -- Ideas and suggestions

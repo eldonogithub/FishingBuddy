@@ -61,6 +61,7 @@ FishingInit.CheckPlayerInfo = function()
 		for _,tab in pairs(tabs) do
 			FishingBuddy_Player[tab] = { };
 		end
+		-- Try legacy format: FishingBuddy_Info[realmName]["Settings"][playerName]
 		if ( FishingBuddy_Info[realmName] and
 			  FishingBuddy_Info[realmName]["Settings"] and
 			  FishingBuddy_Info[realmName]["Settings"][playerName] ) then
@@ -68,6 +69,15 @@ FishingInit.CheckPlayerInfo = function()
 				if ( FishingBuddy_Info[realmName][tab] and
 					  FishingBuddy_Info[realmName][tab][playerName] ) then
 					for k,v in pairs(FishingBuddy_Info[realmName][tab][playerName]) do
+						FishingBuddy_Player[tab][k] = v;
+					end
+				end
+			end
+		-- New format: data stored directly in FishingBuddy_Info
+		elseif ( FishingBuddy_Info["Settings"] ) then
+			for _,tab in pairs(tabs) do
+				if ( FishingBuddy_Info[tab] ) then
+					for k,v in pairs(FishingBuddy_Info[tab]) do
 						FishingBuddy_Player[tab][k] = v;
 					end
 				end
@@ -480,6 +490,22 @@ FishingInit.UpdateFishingDB = function()
         FishingBuddy_Player["Settings"]["UseAnglersRaft"] = nil;
     end
 
+	-- Check for TownsfolkTracker
+	if TownsfolkTracker and FishingInit.GlobalGSB("TownsfolkTracker") then
+		TownsfolkTracker.OldCreateIcons = TownsfolkTracker.CreateIcons;
+		function TownsfolkTracker:CreateIcons()
+			if self.icons_created then
+				return
+			end
+			TownsfolkTracker:OldCreateIcons()
+			self.icons_created = true
+		end
+		TownsfolkTracker.OldDrawDungeonMinimapIcons = TownsfolkTracker.DrawDungeonMinimapIcons;
+		function TownsfolkTracker:DrawDungeonMinimapIcons(mapId)
+			self:CreateIcons()
+			self:OldDrawDungeonMinimapIcons(mapId)
+		end
+	end
 
 	-- save this for other pieces that might need to update
 	lastVersion = version;
@@ -649,6 +675,8 @@ function FBI:Initialize()
 		FishingInit.InitSettings();
 		-- register with myAddOn
 		FishingInit.RegisterMyAddOn();
+
+		FishingBuddy_FAKE = {1};
 
 		gotSetupDone = true;
 		FBI:WatchUpdate();

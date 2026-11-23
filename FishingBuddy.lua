@@ -4,6 +4,17 @@
 local addonName, FBStorage = ...
 local  FBI = FBStorage
 
+-- Global API shims for Forever
+if not GetItemInfo then
+    GetItemInfo = C_Item and C_Item.GetItemInfo or function() end
+end
+if not GetItemFamily then
+    GetItemFamily = C_Item and C_Item.GetItemFamily or function() return 0 end
+end
+if not EquipItemByName then
+    EquipItemByName = C_Item and C_Item.EquipItemByName or function() end
+end
+
 -- FishingSetup
 --
 -- Load out translation strings and such
@@ -251,6 +262,11 @@ local GeneralOptions = {
         ["tooltip"] = FBConstants.CONFIG_SORTBYPERCENT_INFO,
         ["v"] = 1,
         ["default"] = true },
+    ["ShowLocationCounts"] = {
+        ["text"] = FBConstants.CONFIG_LOCATIONCOUNTS_ONOFF,
+        ["tooltip"] = FBConstants.CONFIG_LOCATIONCOUNTS_INFO,
+        ["v"] = 1,
+        ["default"] = false },
     ["ShowBanner"] = {
         ["text"] = FBConstants.CONFIG_SHOWBANNER_ONOFF,
         ["tooltip"] = FBConstants.CONFIG_SHOWBANNER_INFO,
@@ -290,83 +306,14 @@ local GeneralOptions = {
         ["default"] = false,
         ["parents"] = { ["EnhanceFishingSounds"] = "d" },
     },
-    ["SetupSkills"] = {
-        ["text"] = FBConstants.CONFIG_TRADESKILL_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_TRADESKILL_INFO,
+    ["TownsfolkTracker"] = {
+        ["text"] = FBConstants.CONFIG_TOWNSFOLK_ONOFF,
+        ["tooltip"] = FBConstants.CONFIG_TOWNSFOLK_INFO,
         ["v"] = 1,
-        ["default"] = true,
-    },
-    ["ConservatoryPools"] = {
-        ["text"] = FBConstants.CONFIG_CONSERVATORY_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_CONSERVATORY_INFO,
-        ["v"] = 1,
-        ["default"] = true
+        ["global"] = true,
+        ["default"] = false
     },
 };
-
-local EnablingOptions = {
-    ["WalkDistance"] = {
-        ["tooltip"] = FBConstants.CONFIG_WALKDISTANCE_INFO,
-        ["button"] = "FishingBuddyOption_WalkDistanceSlider",
-        ["margin"] = { 12, 8 },
-    },
-    ["RaftDistance"] = {
-        ["tooltip"] = FBConstants.CONFIG_RAFTDISTANCE_INFO,
-        ["button"] = "FishingBuddyOption_RaftDistanceSlider",
-        ["margin"] = { 12, 8 },
-    },
-    ["IdleTimeSlider"] = {
-        ["tooltip"] = FBConstants.CONFIG_IDLETIMER_INFO,
-        ["button"] = "FishingBuddyOption_IdleTimeSlider",
-        ["margin"] = { 12, 8 },
-    },
-}
-
-local WalkDistanceSlider =
-{
-    ["name"] = "FishingBuddyOption_WalkDistanceSlider",
-    ["format"] = FBConstants.DISTANCE.." - %d yards",
-    ["min"] = 0,
-    ["max"] = 100,
-    ["step"] = 5,
-    ["scale"] = 1,
-    ["rightextra"] = 32,
-    ["setting"] = "Enabling_WalkDistance"
-};
-local RaftDistanceSlider =
-{
-    ["name"] = "FishingBuddyOption_RaftDistanceSlider",
-    ["format"] = FBConstants.DISTANCE.." - %d yards",
-    ["min"] = 0,
-    ["max"] = 100,
-    ["step"] = 5,
-    ["scale"] = 1,
-    ["rightextra"] = 32,
-    ["setting"] = "Enabling_RaftDistance"
-};
-local FishingIdleTimeSlider =
-{
-    ["name"] = "FishingBuddyOption_IdleTimeSlider",
-    ["format"] = FBConstants.DISTANCE.." - %d seconds",
-    ["min"] = 0,
-    ["max"] = 120,
-    ["step"] = 15,
-    ["scale"] = 1,
-    ["rightextra"] = 32,
-    ["setting"] = "Enabling_IdleTimeSlider"
-};
-
-local function PrepareEnablingSliders()
-    WalkDistanceSlider['getter'] = function(...) return FBI:GetSetting(...); end;
-    WalkDistanceSlider['setter'] = function(...) return FBI:SetSetting(...); end;
-    LO:CreateSlider(WalkDistanceSlider);
-    RaftDistanceSlider['getter'] = function(...) return FBI:GetSetting(...); end;
-    RaftDistanceSlider['setter'] = function(...) return FBI:SetSetting(...); end;
-    LO:CreateSlider(RaftDistanceSlider);
-    FishingIdleTimeSlider['getter'] = function(...) return FBI:GetSetting(...); end;
-    FishingIdleTimeSlider['setter'] = function(...) return FBI:SetSetting(...); end;
-    LO:CreateSlider(FishingIdleTimeSlider);
-end
 
 
 local VolumeSlider =
@@ -420,7 +367,7 @@ end
 local FishingModeFrame = CreateFrame("Frame");
 
 FishingModeFrame.fishing_started = false
-FishingModeFrame.geared_up = nil -- unknown until the first gear check seeds it
+FishingModeFrame.geared_up = false
 FishingModeFrame.double_click_handler = nil
 
 function FishingModeFrame:SetAutoPoleLocation(clear)
@@ -525,28 +472,12 @@ local function AutoPoleEvent(self, event, arg1, arg2, arg3, arg4, arg5)
         -- reset the fishing sounds, if we need to
         EventRegistry:TriggerEvent(FBConstants.FISHING_DISABLED_EVT, true, true)
     elseif ( event == "PLAYER_EQUIPMENT_CHANGED" or
-            event == "EQUIPMENT_SWAP_FINISHED" or
             event == "BAG_UPDATE" or
             event == "PLAYER_ALIVE") then
-        if ( event == "PLAYER_EQUIPMENT_CHANGED" or event == "EQUIPMENT_SWAP_FINISHED" ) then
-            -- No pole in the fishing tool slot or main hand -> we can't be fishing
-            if ( self.fishing_started and not FL:IsFishingPole() ) then
-                self:EmitStopFishing()
-            end
-        end
-        if FBI:GetSettingBool("PartialGear") then
-            local has_gear = FL:IsFishingReady(true)
-            if self.geared_up == nil then
-                -- seed the initial gear state without starting fishing mode
-                self.geared_up = has_gear
-            elseif has_gear ~= self.geared_up then
-                if self.geared_up then
-                    self:EmitStopFishing()
-                else
-                    self:EmitStartFishing()
-                end
-                self.geared_up = has_gear
-            end
+        if FL:IsFishingReady(FBI:GetSettingBool("PartialGear")) then
+            self:EmitStartFishing()
+        else
+            self:EmitStopFishing()
         end
         if ( event == "PLAYER_ALIVE" ) then
             FBI:FishingMode();
@@ -556,10 +487,8 @@ local function AutoPoleEvent(self, event, arg1, arg2, arg3, arg4, arg5)
 end
 
 FishingModeFrame:SetScript("OnEvent", AutoPoleEvent)
-FishingModeFrame:SetScript("OnUpdate", AutoPoleCheck);
 FishingModeFrame:RegisterEvent("PLAYER_LOGOUT");
 FishingModeFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED");
-FishingModeFrame:RegisterEvent("EQUIPMENT_SWAP_FINISHED");
 FishingModeFrame:RegisterEvent("BAG_UPDATE");
 FishingModeFrame:RegisterEvent("PLAYER_ALIVE");
 FishingModeFrame:RegisterEvent("GLOBAL_MOUSE_DOWN");
@@ -627,12 +556,6 @@ local CastingOptions = {
         ["v"] = 1,
         ["parents"] = { ["EasyCast"] = "d" },
         ["default"] = false },
-    WithoutGear = {
-        text = FBConstants.CONFIG_WITHOUTGEAR_ONOFF,
-        tooltip = FBConstants.CONFIG_WITHOUTGEAR_INFO,
-        v = 1,
-        parents = { EasyCast = "d" },
-        default = false },
     ["WatchBobber"] = {
         ["text"] = FBConstants.CONFIG_WATCHBOBBER_ONOFF,
         ["tooltip"] = FBConstants.CONFIG_WATCHBOBBER_INFO,
@@ -658,7 +581,7 @@ local CastingOptions = {
         ["v"] = 1,
         ["m"] = 1,
         ["depends"] = { ["EasyCast"] = "d" },
-        ["default"] = false },
+        ["default"] = true },
     ["AlwaysHat"] = {
         ["text"] = FBConstants.CONFIG_ALWAYSHAT_ONOFF,
         ["tooltip"] = FBConstants.CONFIG_ALWAYSHAT_INFO,
@@ -672,92 +595,12 @@ local CastingOptions = {
         ["v"] = 1,
         ["m"] = 1,
         ["parents"] = { ["EasyLures"] = "d" },
-        ["default"] = false },
+        ["default"] = true },
     ["LastResort"] = {
         ["text"] = FBConstants.CONFIG_LASTRESORT_ONOFF,
         ["tooltip"] = FBConstants.CONFIG_LASTRESORT_INFO,
         ["v"] = 1,
         ["parents"] = { ["EasyLures"] = "d" },
-        ["default"] = false
-    },
-    ["ContestSupport"] = {
-        ["text"] = FBConstants.CONFIG_CONTESTS_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_CONTESTS_INFO,
-        ["v"] = 1,
-        ["default"] = false
-    },
-    ["STVTimer"] = {
-        ["text"] = FBConstants.CONFIG_STVTIMER_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_STVTIMER_INFO,
-        ["v"] = 1,
-        ["default"] = false,
-        ["parents"] = { ["ContestSupport"] = "d" }
-    },
-    ["STVPoolsOnly"] = {
-        ["text"] = FBConstants.CONFIG_STVPOOLSONLY_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_STVPOOLSONLY_INFO,
-        ["v"] = 1,
-        ["default"] = false,
-        ["primary"] = "ContestSupport",
-        ["parents"] = { ["ContestSupport"] = "d", ["EasyCast"] = "d" }
-    },
-    ["FlyingCast"] = {
-        ["text"] = FBConstants.CONFIG_FLYINGCAST_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_FLYINGCAST_INFO,
-        ["v"] = 1,
-        ["parents"] = { ["EasyCast"] = "d", },
-        ["active"] = function(i, s, b) return (not IsFlying()) or b end,
-        ["default"] = false
-    },
-    ["EasyCastKeys"] = {
-        ["default"] = FBConstants.KEYS_NONE,
-        ["button"] = "FBEasyKeys",
-        ["tooltipd"] = FBConstants.CONFIG_EASYCASTKEYS_INFO,
-        ["parents"] = { ["EasyCast"] = "h" },
-        ["init"] = function(o, b) b.InitMappedMenu(o,b); end,
-        ["setup"] =
-            function(button)
-                FBEasyKeys.menu:SetMappedValue("EasyCastKeys", FBI:GetSetting("EasyCastKeys"));
-            end,
-    },
-    ["KeepOnTruckin"] = {
-        ["text"] = FBConstants.CONFIG_KEEPONTRUCKIN_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_KEEPONTRUCKIN_INFO,
-        ["v"] = 1,
-        ["active"] = function(i, s, b) return b and FBI:AreWeFishing() end,
-        ["parents"] = { ["EasyCast"] = "d" },
-        ["default"] = true
-    },
-    ["DraenorBait"] = {
-        ["text"] = FBConstants.CONFIG_DRAENORBAIT_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_DRAENORBAIT_INFO,
-        ["v"] = 1,
-        ["m"] = 1,
-        ["primary"] = "EasyLures",
-        ["parents"] = { ["EasyLures"] = "d", },
-        ["default"] = true
-    },
-    ["DraenorBaitMaintainOnly"] = {
-        ["text"] = FBConstants.CONFIG_DRAENORBAITMAINTAIN_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_DRAENORBAITMAINTAIN_INFO,
-        ["v"] = 1,
-        ["primary"] = "EasyLures",
-        ["parents"] = {  ["DraenorBait"] = "d", ["EasyLures"] = "d", },
-        ["default"] = true
-    },
-    ["BigDraenor"] = {
-        ["text"] = FBConstants.CONFIG_BIGDRAENOR_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_BIGDRAENOR_INFO,
-        ["v"] = 1,
-        ["m"] = 1,
-        ["parents"] = { ["EasyLures"] = "d" },
-        ["default"] = true
-    },
-    ["DalaranLures"] = {
-        ["text"] = FBConstants.CONFIG_DALARANLURES_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_DALARANLURES_INFO,
-        ["v"] = 1,
-        ["parents"] = { ["EasyLures"] = "d", },
         ["default"] = true
     },
 };
@@ -817,19 +660,7 @@ local InvisibleOptions = {
         ["default"] = 1,
     },
     ["FishDebug"] = {
-        ["default"] = false,
-    },
-    ["Enabling_WalkDistance"] = {
-        ["scale"] = 1,
-        ["default"] = 20,
-    },
-    ["Enabling_RaftDistance"] = {
-        ["scale"] = 1,
-        ["default"] = 50,
-    },
-    ["Enabling_IdleTimeSlider"] = {
-        ["scale"] = 1,
-        ["default"] = FISHINGSPAN,
+        ["default"] = true,
     },
 }
 
@@ -955,7 +786,6 @@ function FBI:GetSortedFishies()
     return self.SortedFishies
 end
 
-InventoryEvents["EQUIPMENT_SWAP_FINISHED"] = true
 
 function bagupdateframe:StartInventory()
     for event,_ in pairs(InventoryEvents) do
@@ -1084,10 +914,6 @@ end
 local tuskarrswap = false;
 
 function FBI:ReadyForFishing()
-    if self:GetSettingBool("WithoutGear") then
-        return true
-    end
-
     local id = FL:GetMainHandItem(true);
     local holdingspear = self:GetSettingBool("UseTuskarrSpear") and (id == 88535);
     local ready = tuskarrswap or holdingspear or FL:IsFishingReady(self:GetSettingBool("PartialGear") );
@@ -1261,14 +1087,6 @@ local CaptureEvents = {};
 local trackedtime = 0;
 local TRACKING_DELAY = 0.75;
 
-CaptureEvents["TRACKED_ACHIEVEMENT_UPDATE"] = function(id, criterion, actualtime, timelimit)
-    if ( id == 5036 ) then
-        -- Last catch was in a pool
-        -- We should add it
-        -- Do we know it was our catch?
-        trackedtime = GetTime();
-    end
-end
 
 local function ClearLastLure()
     local LSM = FBI.LureStateManager;
@@ -1280,42 +1098,32 @@ local fishing_buff = 131474;
 local fishing_spellid = 131490;
 local current_spell_id = nil
 
--- The channel events report the castable Fishing spell (131474, fishing_buff),
--- not the profession spell id kept in fishing_spellid
-local function IsFishingCast(spellid)
-    return spellid and (spellid == fishing_buff or spellid == fishing_spellid);
-end
-
 CaptureEvents["UNIT_SPELLCAST_CHANNEL_START"] = function(unit, lineid, spellid)
-    if ( unit ~= "player" ) then
-        return;
-    end
     current_spell_id = spellid
-    if IsFishingCast(spellid) then
+    if current_spell_id == fishing_spellid then
         SetLastCastTime();
-        -- any fishing cast counts as fishing, no matter how it was cast
-        FishingModeFrame:EmitStartFishing();
     end
 end
 
 CaptureEvents["UNIT_SPELLCAST_CHANNEL_STOP"] = function(unit, lineid, spellid)
-    if ( unit ~= "player" ) then
-        return;
-    end
     -- we may want to wait a bit here for any buff to come back...
-    -- the fishing-mode check is a safety net in case the spell id drifts again
-    if IsFishingCast(current_spell_id) or FishingModeFrame.fishing_started then
+    if current_spell_id == fishing_spellid then
         SetLastCastTime();
     end
     current_spell_id = nil
     ClearLastLure()
 end
 
+CaptureEvents["UNIT_SPELLCAST_STOP"] = function(unit, lineid, spellid)
+    current_spell_id = nil
+end
+
+CaptureEvents["UNIT_SPELLCAST_SUCCEEDED"] = function(unit, lineid, spellid)
+    current_spell_id = nil
+end
+
 CaptureEvents["UNIT_SPELLCAST_INTERRUPTED"] = function(unit, lineid, spellid)
-    if ( unit ~= "player" ) then
-        return;
-    end
-    if IsFishingCast(current_spell_id) then
+    if current_spell_id == fishing_spellid then
         SetLastCastTime();
     end
     current_spell_id = nil
@@ -1355,7 +1163,7 @@ local function NormalHijackCheck()
     if ( not LSM:GetLastLure() and
          not FL:InCombat() and GSA("FlyingCast") and GSA("MountedCast") and
          not IsFishingAceEnabled() and
-         GSB("EasyCast") and CheckCastingKeys() and not current_spell_id) then
+         GSB("EasyCast") and CheckCastingKeys()) then
         return true;
     end
 end
@@ -1440,7 +1248,7 @@ function FBI:GetFishie(fishid)
         if ( not name ) then
             name = UNKNOWN;
         end
-        return string.format("%d:0:0:0:0:0:0:0", fishid),
+        return  fishid,
                  fi.texture,
                  fi.color,
                  fi.quantity,
@@ -1461,7 +1269,8 @@ local function GetCVarSafe(cvarname)
 end
 
 local function GetCVarSafeBool(cvarname)
-    if GetCVarSafe(cvarname) then
+    local val = GetCVarSafe(cvarname)
+    if val and val ~= "0" and val ~= "false" then
         return true
     end
     return false
@@ -1508,15 +1317,23 @@ function FBI:ExitFishingMode(logout)
         resetClickToMove = nil;
     end
 
+    -- Clear override bindings when leaving fishing mode
+    local saButton = _G["LibFishingSAButton"]
+    if saButton and not InCombatLockdown() then
+        ClearOverrideBindings(saButton)
+    end
+
     ClearLastLure();
 end
 
 function FBI:FishingMode()
-    local ready = self:ReadyForFishing() or FishingModeFrame:IsShown();
-    if ( ready ) then
-        EventRegistry:TriggerEvent(FBConstants.FISHING_ENABLED_EVT)
+    -- Use the real gear check rather than FishingModeFrame:IsShown(), which is a
+    -- plain frame that is never hidden and therefore always reports true.
+    -- The Emit* methods guard against duplicate start/stop events.
+    if ( self:ReadyForFishing() ) then
+        FishingModeFrame:EmitStartFishing()
     else
-        EventRegistry:TriggerEvent(FBConstants.FISHING_DISABLED_EVT)
+        FishingModeFrame:EmitStopFishing()
     end
 end
 
@@ -1670,30 +1487,34 @@ function FBI:EnhanceFishingSounds(doit, logout)
     local GSB = function(...) return FBI:GetSettingBool(...); end;
     local GSO = function(...) return FBI:GetSettingOption(...); end;
     if ( GSB("EnhanceFishingSounds") ) then
+        -- A repeated activation request must not fall through to the restore
+        -- block below, which would put the original sounds back mid-fishing.
+        if ( efsv and doit ) then
+            return;
+        end
         if ( not efsv and doit ) then
             -- collect the current values
+            efsv = {};
+            if (GSB("TurnOnSound")) then
+                local eas = GetCVarSafe("Sound_EnableAllSound");
+                local esfx = GetCVarSafe("Sound_EnableSFX");
+                if eas ~= nil then efsv["Sound_EnableAllSound"] = eas end
+                if esfx ~= nil then efsv["Sound_EnableSFX"] = esfx end
+            end
+
             local mv = GetCVarSafe("Sound_MasterVolume");
             local mu = GetCVarSafe("Sound_MusicVolume");
             local av = GetCVarSafe("Sound_AmbienceVolume");
             local sv = GetCVarSafe("Sound_SFXVolume");
             local sb = GetCVarSafe("Sound_EnableSoundWhenGameIsInBG");
             local pd = GetCVarSafe("graphicsParticleDensity");
-            local eas = GetCVarSafe("Sound_EnableAllSound");
-            local esfx = GetCVarSafe("Sound_EnableSFX");
 
-            efsv = {};
-            if (GSB("TurnOnSound")) then
-                efsv["Sound_EnableAllSound"] = eas;
-                efsv["Sound_EnableSFX"] = esfx;
-            end
-
-            efsv["Sound_MasterVolume"] = mv;
-            efsv["Sound_MusicVolume"] = mu;
-            efsv["Sound_AmbienceVolume"] = av;
-            efsv["Sound_SFXVolume"] = sv;
-            efsv["Sound_EnableSoundWhenGameIsInBG"] = sb;
-
-            if (GSB("EnhancePools")) then
+            if mv ~= nil then efsv["Sound_MasterVolume"] = mv end
+            if mu ~= nil then efsv["Sound_MusicVolume"] = mu end
+            if av ~= nil then efsv["Sound_AmbienceVolume"] = av end
+            if sv ~= nil then efsv["Sound_SFXVolume"] = sv end
+            if sb ~= nil then efsv["Sound_EnableSoundWhenGameIsInBG"] = sb end
+            if (GSB("EnhancePools")) and pd ~= nil then
                 efsv["graphicsParticleDensity"] = pd;
             end
 
@@ -1717,37 +1538,15 @@ function FBI:EnhanceFishingSounds(doit, logout)
 
     if ( efsv ) then
         for setting, value in pairs(efsv) do
-            SetCVar(setting, tonumber(value));
+            if value ~= nil then
+                SetCVar(setting, tonumber(value));
+            end
         end
         efsv = nil;
     end
 end
 
 local IsZoning;
-
--- Track when we last caught something for delayed loot detection
-local lastFishingTime = 0
-local FISHING_LOOT_TIMEOUT = 3.0  -- seconds to consider loot as fishing-related after fishing ends
-
--- Modern WoW removed IsFishingLoot() global function
--- Loot only counts as fish when the fishing channel itself just ran. Fishing mode can
--- stay active for a minute between casts -- plenty of time to kill and loot a mob --
--- so neither the mode nor an equipped pole may qualify loot on their own.
-local function IsFishingLoot()
-    -- The fishing channel ran moments ago (looting the bobber always ends the channel)
-    local lastcast = GetLastCastTime()
-    if lastcast and (GetTime() - lastcast) < FISHING_LOOT_TIMEOUT then
-        lastFishingTime = GetTime()
-        return true
-    end
-
-    -- Also check if we were fishing recently (handles delayed loot windows)
-    if lastFishingTime > 0 and (GetTime() - lastFishingTime) < FISHING_LOOT_TIMEOUT then
-        return true
-    end
-
-    return false
-end
 
 -- Return true if we might be looting from a barrel.
 local function LegionBarrel()
@@ -1798,45 +1597,17 @@ function FBI:OnEvent(event, ...)
                 end
 
                 -- if we want to autoloot, and Blizz isn't, let's grab stuff
-                -- Modern WoW API: GetLootInfo() was removed, use GetLootSlotInfo instead
-                local numLootItems = GetNumLootItems()
-                for index = 1, numLootItems do
-                    local lootType = GetLootSlotType(index);
-                    
-                    -- Only process actual items, not currency
-                    if lootType == Enum.LootSlotType.Item then
-                        local link = GetLootSlotLink(index);
-                        local texture, name, quantity, currencyID, quality = GetLootSlotInfo(index);
-                        
-                        -- Always use link if available, it's more reliable
-                        if link then
-                            -- Extract item ID from link if name isn't available
-                            if not name then
-                                local itemID = tonumber(string.match(link, "item:(%d+)"))
-                                if itemID then
-                                    name = C_Item.GetItemNameByID(itemID)
-                                end
-                            end
-                            
-                            -- Add to cache if we have name and link
-                            if name and link then
-                                FBI:AddLootCache(
-                                    texture,
-                                    name,
-                                    quantity or 1,
-                                    quality or 0,
-                                    link,
-                                    poolhint
-                                )
-                            end
-                        end
-                    end
-                    
+                local info = GetLootInfo()
+                for index, item in ipairs(info) do
+                    local link = GetLootSlotLink(index);
+                    -- should we track "locked" items we couldn't loot?'
+                    FBI:AddLootCache(item.texture, item.name, item.quantity, item.quality, link, poolhint)
                     if (doautoloot) then
                         LootSlot(index);
                     end
                 end
                 FL:ClearLastTooltipText();
+                GameTooltip:Hide();
                 FL:ExtendDoubleClick();
             elseif (DoAutoOpenLoot) then
                 DoAutoOpenLoot = nil;
@@ -1870,11 +1641,11 @@ function FBI:OnEvent(event, ...)
             end
         end
     elseif ( event == "VARIABLES_LOADED" ) then
+
         local _, name = FL:GetFishingSpellInfo();
         PLANS = FBI.FishingPlans;
         FBI:Initialize();
         PrepareVolumeSlider()
-        PrepareEnablingSliders()
         FBI.OptionsFrame.HandleOptions(GENERAL, nil, GeneralOptions);
         FBI:AddSchoolFish();
 
@@ -1882,7 +1653,6 @@ function FBI:OnEvent(event, ...)
         FBI:CreateFBMappedDropDown("FBMouseEvent", "MouseEvent", FBConstants.CONFIG_MOUSEEVENT_ONOFF, FBConstants.CastingKeyLabel)
 
         FBI.OptionsFrame.HandleOptions(name, "Interface\\Icons\\INV_Fishingpole_02", CastingOptions);
-        FBI.OptionsFrame.HandleOptions(ENABLE, "Interface\\CIons\\IMV\\NV_misc_pocketwatch_03", EnablingOptions);
         FBI.OptionsFrame.HandleOptions(nil, nil, InvisibleOptions);
 
         -- defaults to true
@@ -1912,11 +1682,11 @@ function FBI:OnEvent(event, ...)
             FBI:EnhanceFishingSounds(false, false);
             FishingBuddy_Player["ResetEnhance"] = nil;
         end
-
         -- Default is true, not saved, therefor implicitly nil
-        if (FishingBuddy_Player["Settings"]["SetupSkills"] == nil) then
+        if (FishingBuddy_Player and FishingBuddy_Player["Settings"] and FishingBuddy_Player["Settings"]["SetupSkills"] == nil) then
             FL:GetTradeSkillData()
         end
+
     elseif ( event == "PLAYER_LEAVING_WORLD") then
         FBI:RunHandlers(FBConstants.LEAVING_EVT);
         IsZoning = 1;

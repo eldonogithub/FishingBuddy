@@ -86,20 +86,6 @@ local WatcherOptions = {
         ["default"] = false,
         ["parents"] = { ["WatchFishies"] = "d" }
     },
-    ["WatchPagleFish"] = {
-        ["text"] = FBConstants.CONFIG_FISHWATCHPAGLE_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_FISHWATCHPAGLE_INFO,
-        ["v"] = 1,
-        ["default"] = true,
-        ["parents"] = { ["WatchFishies"] = "d" }
-    },
-    ["WatchWorldQuests"] = {
-        ["text"] = FBConstants.CONFIG_FISHWATCHWORLD_ONOFF,
-        ["tooltip"] = FBConstants.CONFIG_FISHWATCHWORLD_INFO,
-        ["v"] = 1,
-        ["default"] = true,
-        ["parents"] = { ["WatchFishies"] = "d" }
-    },
 --    ["WatchWarnFishing"] = {
 --        ["text"] = FBConstants.CONFIG_FISHWARNFISHING_ONOFF,
 --        ["tooltip"] = FBConstants.CONFIG_FISHWARNFISHING_INFO,
@@ -565,8 +551,49 @@ end
 WatchEvents["VARIABLES_LOADED"] = function()
     ZoneFishingTime = 0;
 
+    -- Reference template textures as frame fields for PanelTemplates functions
+    if not FishingWatchTab.Left then
+        FishingWatchTab.Left = _G["FishingWatchTabLeft"]
+        if not FishingWatchTab.Left then
+            local IT = "Interface\\PaperDollInfoFrame\\UI-Character-InActiveTab"
+            FishingWatchTab.Left = FishingWatchTab:CreateTexture(nil, "BACKGROUND")
+            FishingWatchTab.Left:SetTexture(IT)
+            FishingWatchTab.Left:SetTexCoord(0, 0.15625, 0, 1)
+            FishingWatchTab.Left:SetSize(20, 32)
+            FishingWatchTab.Left:SetPoint("TOPLEFT", FishingWatchTab, "TOPLEFT", 0, -1)
+        end
+    end
+    if not FishingWatchTab.Right then
+        FishingWatchTab.Right = _G["FishingWatchTabRight"]
+        if not FishingWatchTab.Right then
+            local IT = "Interface\\PaperDollInfoFrame\\UI-Character-InActiveTab"
+            FishingWatchTab.Right = FishingWatchTab:CreateTexture(nil, "BACKGROUND")
+            FishingWatchTab.Right:SetTexture(IT)
+            FishingWatchTab.Right:SetTexCoord(0.84375, 1, 0, 1)
+            FishingWatchTab.Right:SetSize(20, 32)
+            FishingWatchTab.Right:SetPoint("TOPRIGHT", FishingWatchTab, "TOPRIGHT", 0, -1)
+        end
+    end
+    if not FishingWatchTab.Middle then
+        FishingWatchTab.Middle = _G["FishingWatchTabMiddle"]
+        if not FishingWatchTab.Middle then
+            local IT = "Interface\\PaperDollInfoFrame\\UI-Character-InActiveTab"
+            FishingWatchTab.Middle = FishingWatchTab:CreateTexture(nil, "BACKGROUND")
+            FishingWatchTab.Middle:SetTexture(IT)
+            FishingWatchTab.Middle:SetTexCoord(0.15625, 0.84375, 0, 1)
+            FishingWatchTab.Middle:SetPoint("LEFT", FishingWatchTab.Left, "RIGHT")
+            FishingWatchTab.Middle:SetPoint("RIGHT", FishingWatchTab.Right, "LEFT")
+        end
+    end
+    if not FishingWatchTab.Text then
+        FishingWatchTab.Text = _G["FishingWatchTabText"];
+    end
+    if not FishingWatchTab.Text then
+        FishingWatchTab.Text = FishingWatchTab:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        FishingWatchTab.Text:SetPoint("CENTER", FishingWatchTab, "CENTER", 0, -3)
+    end
     FishingWatchTab.Text:SetText(FBConstants.NAME);
-    PanelTemplates_TabResize(FishingWatchTab, 10);
+    LibStub("LibTabbedFrame-1.0"):ResizeTab(FishingWatchTab, 10);
 
     FBI.OptionsFrame.HandleOptions(FBConstants.WATCHER_TAB, "Interface\\Icons\\Inv_Misc_Spyglass_03", WatcherOptions);
     -- FBI.OptionsFrame.HandleOptions(nil, nil, InvisibleOptions);
@@ -654,7 +681,7 @@ local function DisplayFishingWorldQuests()
     local prof1, prof2, arch, fish, cook, firstAid = GetProfessions();
 
     for mapId,_ in pairs (legionmaps) do
-        local taskInfo = C_TaskQuest.GetQuestsOnMap (mapId);
+        local taskInfo = GetQuestsForPlayerByMapID (mapId);
         if (taskInfo and #taskInfo > 0) then
             for _,info in ipairs (taskInfo) do
                 local questID = info.questId;
@@ -967,25 +994,13 @@ end
 
 local isDragging = nil;
 local hover;
-local function IsFrameMouseOver(frame)
-    if not frame then
-        return false;
-    end
-    if frame.IsMouseOver then
-        return frame:IsMouseOver();
-    end
-    if _G.MouseIsOver then
-        return _G.MouseIsOver(frame);
-    end
-    return false;
-end
 FBEnvironment.Watcher_OnUpdate = function(self, elapsed)
     if ( self:IsVisible() ) then
         UpdateWatcherPosition();
         if ( isDragging ) then
             return;
         end
-        if ( IsFrameMouseOver(self) or IsFrameMouseOver(FishingWatchTab) ) then
+        if ( MouseIsOver(self) or MouseIsOver(FishingWatchTab) ) then
             local xPos, yPos = GetCursorPosition();
             if ( hover ) then
                 if ( hover.xPos == xPos and hover.yPos == yPos ) then

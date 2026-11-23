@@ -16,41 +16,6 @@ if not OptionsLib then
     return
 end
 
-local function AddTooltipLine(l)
-    if ( type(l) == "table" ) then
-        -- either { t, c } or {{t1, c1}, {t2, c2}}
-        if ( type(l[1]) == "table" ) then
-            local c1 = SplitColor(l[1][2]) or {};
-            local c2 = SplitColor(l[2][2]) or {};
-            GameTooltip:AddDoubleLine(l[1][1], l[2][1],
-                                              c1.r, c1.g, c1.b,
-                                              c2.r, c2.g, c2.b);
-        else
-            local c = SplitColor(l[2]) or {};
-            GameTooltip:AddLine(l[1], c.r, c.g, c.b, 1);
-        end
-    else
-        GameTooltip:AddLine(l,nil,nil,nil,1);
-    end
-end
-
-local function AddTooltip(text, tooltip)
-    if ( not tooltip ) then
-        tooltip = GameTooltip;
-    end
-    -- local c = color or {{}, {}};
-    if ( text ) then
-        if ( type(text) == "table" ) then
-            for _,l in pairs(text) do
-                AddTooltipLine(l);
-            end
-        else
-            -- AddTooltipLine(text, color);
-            tooltip:AddLine(text,nil,nil,nil,1);
-        end
-    end
-end
-
 -- managed control support
 local function Slider_OnLoad(self, info, height, width)
     self.info = info;
@@ -451,11 +416,9 @@ end
 tinsert(copyfuncs, "_layoutorder");
 
 function OptionsLib:_firstposition(button, xoffset, yoffset)
-    if button ~= self.reference then
-        xoffset = xoffset or 4;
-        yoffset = yoffset or -4;
-        button:SetPoint("TOPLEFT", self.reference, "TOPLEFT", xoffset, yoffset);
-    end
+    xoffset = xoffset or 4;
+    yoffset = yoffset or -4;
+    button:SetPoint("TOPLEFT", self.reference, "TOPLEFT", xoffset, yoffset);
 end
 tinsert(copyfuncs, "_firstposition");
 
@@ -464,7 +427,6 @@ function OptionsLib:_dolayout(layout, lastbutton, firstoff)
     firstoff = firstoff or 0;
     for idx,line in ipairs(layout) do
         local lb, rb = line[1], line[2];
-        lb:ClearAllPoints()
         local yoff = nil;
         if ( lb.margin ) then
             yoff = -(lb.margin[2] or SQUISH_OFF);
@@ -477,7 +439,7 @@ function OptionsLib:_dolayout(layout, lastbutton, firstoff)
         end
         if ( not lastbutton ) then
             self:_firstposition(lb, firstoff, yoff);
-        elseif lb ~= lastbutton then
+        else
             yoff = SQUISH_OFF;
             lb:SetPoint("TOPLEFT", lastbutton, "BOTTOMLEFT", firstoff, yoff);
             firstoff = 0;
@@ -544,10 +506,6 @@ local function CleanupButton(button)
 
     button.custom = nil;
     button.option = nil;
-
-    button:SetScript("OnEnter", nil);
-    button:SetScript("OnLeave", nil);
-
     button:Hide();
     button:SetParent(nil);
 end
@@ -557,28 +515,13 @@ function OptionsLib:NextButton()
     if ( not button ) then
         button = CreateFrame(
             "CheckButton", self.name.."Opt"..self.index,
-            self.reference, "FishingBuddyCheckButtonTemplate");
+            self.reference, "OptionsSmallCheckButtonTemplate");
         self.optionbuttons[self.index] = button;
     end
     self.index = self.index + 1;
     return button;
 end
 tinsert(copyfuncs, "NextButton");
-
--- tooltip support for disabled buttons
-local function Handle_OnEnter(self)
-    if(self.tooltipText ~= nil) then
-        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 48, 0);
-        AddTooltip(self.tooltipText);
-        GameTooltip:Show();
-    end
-end
-
-local function Handle_OnLeave(self)
-    if(self.tooltipText ~= nil) then
-        GameTooltip:Hide();
-    end
-end
 
 function OptionsLib:NextOverlay()
     local overlay = self.overlaybuttons[self.overlayidx];
@@ -591,7 +534,6 @@ function OptionsLib:NextOverlay()
         overlay:SetScript("OnLeave", Handle_OnLeave);
     end
     self.overlayidx = self.overlayidx + 1;
-    overlay:ClearAllPoints();
     return overlay;
 end
 tinsert(copyfuncs, "NextOverlay");
@@ -669,6 +611,8 @@ function OptionsLib:InitializeOptions(options)
                     button.text = "";
                 end
 
+                button.tooltipText = option.tooltip;
+
                 if ( button.checkbox ) then
                     if (self.GetSettingBool) then
                         button:SetChecked(self.GetSettingBool(name));
@@ -683,21 +627,19 @@ function OptionsLib:InitializeOptions(options)
                     button.slider = 0;
                 end
 
-                button.tooltipText = option.tooltip;
                 if ( option.tooltipd ) then
                     local tooltip = option.tooltipd;
                     if ( type(tooltip) == "function" ) then
                         tooltip = tooltip(option);
                     end
-                    if tooltip then
-                        button.tooltipText = tooltip
-                    end
-                end
 
-                if ( button.tooltipText ) then
---#retail@
-                    button:SetScript("OnEnter", Handle_OnEnter);
-                    button:SetScript("OnLeave", Handle_OnLeave);
+                    if ( tooltip ) then
+                        local overlay = self:NextOverlay()
+                        overlay:SetSize(button.width or button:GetWidth(), button:GetHeight());
+                        overlay:SetPoint("LEFT", button, "LEFT");
+                        overlay.tooltipText = tooltip;
+                        button.overlay = overlay;
+                    end
                 end
 
                 if ( option.setup ) then
@@ -763,7 +705,6 @@ function OptionsLib:LayoutOptions(options)
     local lastoff = 0;
     for _,name in pairs(primaries) do
         local button = self.optionmap[name];
-        button:ClearAllPoints()
         if ( not lastbutton ) then
             local yoff, firstoff;
             if ( button.margin ) then
@@ -771,7 +712,7 @@ function OptionsLib:LayoutOptions(options)
                 firstoff = button.margin[1] or 0;
             end
             self:_firstposition(button, firstoff, yoff);
-        elseif button ~= lastbutton then
+        else
             local yoff = SQUISH_OFF;
             if ( button.margin ) then
                 yoff = yoff - button.margin[2];
@@ -854,7 +795,7 @@ function OptionsLib:Embed(target, onclick, onshow, reference)
     end
     OptionsLib.previousClients[f] = true;
     f.name = n;
-    f.reference = reference or f:GetParent();
+    f.reference = reference or f;
     f.onclick = onclick;
     f.onshow = onshow;
 

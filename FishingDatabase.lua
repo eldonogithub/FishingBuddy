@@ -158,9 +158,320 @@ local function initmappings()
 	end
 end
 
+-- map an old map number to a new mapId for internal data
+-- tables in Classic
+local oldToNewMapId = {
+	[4] = 1,
+	[9] = 7,
+	[11] = 10,
+	[13] = 12,
+	[14] = 13,
+	[16] = 14,
+	[17] = 15,
+	[19] = 17,
+	[20] = 18,
+	[21] = 21,
+	[22] = 22,
+	[23] = 23,
+	[24] = 25,
+	[26] = 26,
+	[27] = 27,
+	[28] = 32,
+	[29] = 36,
+	[30] = 37,
+	[32] = 42,
+	[886] = 456,
+	[1014] = 625,
+	[887] = 457,
+	[1015] = 630,
+	[888] = 460,
+	[381] = 89,
+	[889] = 461,
+	[1017] = 634,
+	[890] = 462,
+	[1018] = 641,
+	[382] = 998,
+	[891] = 463,
+	[510] = 127,
+	[40] = 56,
+	[892] = 465,
+	[1020] = 645,
+	[893] = 467,
+	[1021] = 646,
+	[894] = 468,
+	[1022] = 649,
+	[895] = 469,
+	[512] = 128,
+	[640] = 207,
+	[1024] = 650,
+	[321] = 85,
+	[1026] = 661,
+	[161] = 71,
+	[1027] = 671,
+	[1028] = 672,
+	[1031] = 676,
+	[81] = 65,
+	[1033] = 680,
+	[1034] = 694,
+	[1037] = 696,
+	[1038] = 697,
+	[521] = 130,
+	[1041] = 703,
+	[1042] = 706,
+	[906] = 483,
+	[1044] = 709,
+	[1046] = 713,
+	[41] = 57,
+	[1047] = 714,
+	[1048] = 715,
+	[781] = 333,
+	[1050] = 717,
+	[1051] = 718,
+	[1052] = 719,
+	[911] = 486,
+	[528] = 142,
+	[912] = 487,
+	[529] = 147,
+	[1057] = 726,
+	[530] = 153,
+	[1059] = 728,
+	[914] = 488,
+	[531] = 155,
+	[1065] = 731,
+	[1067] = 733,
+	[919] = 490,
+	[1071] = 738,
+	[920] = 498,
+	[1072] = 739,
+	[793] = 337,
+	[461] = 93,
+	[795] = 338,
+	[462] = 94,
+	[1078] = 748,
+	[42] = 62,
+	[796] = 339,
+	[1080] = 750,
+	[463] = 95,
+	[1082] = 757,
+	[1084] = 758,
+	[464] = 97,
+	[544] = 174,
+	[800] = 367,
+	[928] = 504,
+	[545] = 179,
+	[673] = 210,
+	[401] = 91,
+	[929] = 507,
+	[1090] = 773,
+	[201] = 78,
+	[1092] = 776,
+	[466] = 101,
+	[1096] = 790,
+	[101] = 66,
+	[933] = 516,
+	[1099] = 793,
+	[807] = 376,
+	[935] = 519,
+	[808] = 378,
+	[1104] = 799,
+	[341] = 87,
+	[809] = 379,
+	[937] = 520,
+	[810] = 388,
+	[811] = 390,
+	[939] = 523,
+	[35] = 48,
+	[684] = 217,
+	[940] = 524,
+	[685] = 218,
+	[813] = 397,
+	[471] = 103,
+	[1114] = 806,
+	[686] = 219,
+	[1116] = 823,
+	[816] = 398,
+	[281] = 83,
+	[689] = 224,
+	[945] = 534,
+	[141] = 70,
+	[946] = 535,
+	[819] = 399,
+	[947] = 539,
+	[1126] = 824,
+	[820] = 401,
+	[948] = 542,
+	[949] = 543,
+	[950] = 550,
+	[823] = 407,
+	[951] = 554,
+	[824] = 409,
+	[1136] = 834,
+	[697] = 233,
+	[953] = 556,
+	[1139] = 837,
+	[1140] = 838,
+	[699] = 234,
+	[955] = 571,
+	[36] = 49,
+	[700] = 241,
+	[1144] = 843,
+	[1145] = 844,
+	[479] = 109,
+	[1149] = 858,
+	[480] = 110,
+	[1150] = 859,
+	[1151] = 860,
+	[1152] = 861,
+	[1153] = 862,
+	[481] = 111,
+	[1154] = 863,
+	[1155] = 864,
+	[962] = 572,
+	[482] = 112,
+	[708] = 244,
+	[1160] = 871,
+	[709] = 245,
+	[1161] = 872,
+	[121] = 69,
+	[1162] = 875,
+	[1163] = 876,
+	[1164] = 877,
+	[1165] = 878,
+	[485] = 113,
+	[1170] = 882,
+	[1171] = 885,
+	[970] = 577,
+	[486] = 114,
+	[1174] = 891,
+	[1175] = 895,
+	[61] = 64,
+	[1176] = 896,
+	[717] = 247,
+	[1177] = 897,
+	[973] = 582,
+	[1178] = 903,
+	[488] = 115,
+	[720] = 249,
+	[1183] = 904,
+	[1184] = 994,
+	[1185] = 906,
+	[1186] = 907,
+	[181] = 76,
+	[1187] = 908,
+	[978] = 588,
+	[1188] = 909,
+	[362] = 88,
+	[851] = 416,
+	[490] = 116,
+	[1190] = 921,
+	[1191] = 922,
+	[980] = 590,
+	[1192] = 923,
+	[1193] = 924,
+	[491] = 117,
+	[1194] = 925,
+	[182] = 77,
+	[1195] = 926,
+	[1196] = 927,
+	[1197] = 928,
+	[492] = 118,
+	[1198] = 929,
+	[1199] = 930,
+	[1200] = 931,
+	[1201] = 932,
+	[493] = 119,
+	[1202] = 933,
+	[858] = 422,
+	[986] = 594,
+	[1205] = 936,
+	[38] = 51,
+	[605] = 194,
+	[733] = 273,
+	[495] = 120,
+	[606] = 198,
+	[734] = 274,
+	[1211] = 939,
+	[607] = 199,
+	[1213] = 942,
+	[496] = 121,
+	[1214] = 943,
+	[736] = 275,
+	[1215] = 971,
+	[1216] = 972,
+	[737] = 276,
+	[610] = 201,
+	[1219] = 974,
+	[994] = 610,
+	[1220] = 981,
+	[613] = 203,
+	[499] = 122,
+	[614] = 204,
+	[615] = 205,
+	[467] = 102,
+	[540] = 169,
+	[983] = 592,
+	[34] = 47,
+	[1210] = 938,
+	[1087] = 761,
+	[873] = 433,
+	[501] = 123,
+	[473] = 104,
+	[477] = 107,
+	[476] = 106,
+	[941] = 525,
+	[775] = 329,
+	[747] = 277,
+	[609] = 200,
+	[502] = 124,
+	[39] = 52,
+	[1086] = 760,
+	[866] = 427,
+	[1091] = 775,
+	[43] = 63,
+	[1135] = 830,
+	[877] = 443,
+	[856] = 417,
+	[261] = 81,
+	[37] = 50,
+	[878] = 447,
+	[862] = 424,
+	[864] = 425,
+	[751] = 948,
+	[1056] = 725,
+	[1007] = 619,
+	[541] = 170,
+	[465] = 100,
+	[880] = 448,
+	[1008] = 620,
+	[602] = 184,
+	[301] = 84,
+	[881] = 449,
+	[1009] = 622,
+	[626] = 206,
+	[475] = 105,
+	[882] = 450,
+	[1010] = 623,
+	[789] = 335,
+	[241] = 80,
+	[883] = 451,
+	[1011] = 624,
+	[857] = 418,
+	[478] = 108,
+	[884] = 452,
+	[1077] = 747,
+	[611] = 202,
+	[772] = 327,
+	[443] = 92,
+	[806] = 371,
+}
+
+local function GetNewMapId(mapId)
+	return oldToNewMapId[mapId] or mapId
+end
+
 function FBI:GetCurrentMapIdInfo()
 	local mapId, subzone = FL:GetZoneInfo()
-	return mapId, subzone
+	return GetNewMapId(mapId) or mapId, subzone
 end
 
 function FBI:GetZoneIndex(mapId, subzone, marker)
@@ -295,26 +606,41 @@ function FBI:IsCountedFish(id)
 	return true;
 end
 
-local questType = _G.GetItemClassInfo(Enum.ItemClass.Questitem);
+local questType = C_Item and C_Item.GetItemClassInfo(Enum.ItemClass.Questitem) or _G.GetItemClassInfo(Enum.ItemClass.Questitem) or ""
 local CurLoc = GetLocale();
 function FBI:AddFishie(color, id, name, mapId, subzone, texture, quantity, quality, level, it, st, poolhint)
 	local GSB = function(...) return FBI:GetSettingBool(...); end;
 	
-	if not id then
-		return
+	-- Validate color is a valid hex string. If not (e.g. "nIQ1:"), ignore it so fallback logic works.
+	if color and not string.match(color, "^%x+$") then
+	    color = nil;
 	end
-	
+
 	if ( id and not FishingBuddy_Info["Fishies"][id] ) then
 		if ( not color ) then
-			local _,_,_,hex = GetItemQualityColor(quality);
-			_,_,color = string.find(hex, "|c(%a+)");
+			local hex = LINK_QUALITY_COLORS and LINK_QUALITY_COLORS[quality] and LINK_QUALITY_COLORS[quality].hex;
+			if hex then
+				_,_,color = string.find(hex, "|c?(%a+)");
+			end
 		end
 		FishingBuddy_Info["Fishies"][id] = { };
 		FishingBuddy_Info["Fishies"][id][CurLoc] = name;
 		FishingBuddy_Info["Fishies"][id].texture = texture;
 		FishingBuddy_Info["Fishies"][id].quality = quality;
-		if ( color ~= "ffffffff" ) then
+		if ( color and color ~= "ffffffff" ) then
 			FishingBuddy_Info["Fishies"][id].color = color;
+		end
+	elseif ( id and FishingBuddy_Info["Fishies"][id] ) then
+		-- Sanitize and repair existing entry if color is invalid
+		if FishingBuddy_Info["Fishies"][id].color and not string.match(FishingBuddy_Info["Fishies"][id].color, "^%x+$") then
+			FishingBuddy_Info["Fishies"][id].color = nil;
+			-- Recalculate color from quality
+			local colorTable = LINK_QUALITY_COLORS or ITEM_QUALITY_COLORS;
+			local hex = colorTable and colorTable[quality] and colorTable[quality].hex;
+			if hex then
+				_,_,color = string.find(hex, "|c?(%a+)");
+				FishingBuddy_Info["Fishies"][id].color = color;
+			end
 		end
 		if ( FBI.SortedFishies ) then
 			tinsert(FBI.SortedFishies, { text = name, id = id });
@@ -438,33 +764,9 @@ local function ProcessFishLoot()
 	while (table.getn(lootcache) > 0) do
 		local info = table.remove(lootcache)
 		local texture, fishie, quantity, quality = info.texture, info.fishie, info.quantity, info.quality;
-		
-		-- Extract item ID directly from the link string first
-		local itemID = nil
-		if info.link then
-			itemID = tonumber(string.match(info.link, "item:(%d+)"))
-		end
-		
-		-- Try to get item info
 		local nm,link,it,st,el,il = FL:GetItemInfoFields(info.link, FL.ITEM_NAME, FL.ITEM_LINK, FL.ITEM_TYPE, FL.ITEM_SUBTYPE, FL.ITEM_EQUIPLOC, FL.ITEM_LEVEL);
-		
-		-- If GetItemInfoFields failed, try using the cached link directly
-		if not link then
-			link = info.link
-		end
-		
-		-- Try SplitLink but we already have the ID from direct extraction
-		local color, id, name = FL:SplitLink(link, true);
-		
-		-- Use directly extracted ID if SplitLink failed
-		if not id and itemID then
-			id = itemID
-		end
-		
-		-- Use cached name if we don't have one
-		if not name then
-			name = fishie or nm
-		end
+		-- Fallback to original link if GetItemInfo hasn't cached the item yet
+		local color, id, name = FL:SplitLink(link or info.link, true);
 
 		-- handle things we can't actually count that might be in our fish (e.g. Garrison Resources)
 		if (id) then
